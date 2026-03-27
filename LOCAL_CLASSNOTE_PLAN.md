@@ -13,6 +13,7 @@
 
 要求是全部本地离线执行，不依赖云端 API。
 
+codex/implement-local-speech-to-text-conversion-25b4oh
 ### 1.1 约束条件（新增）
 
 - **必须本地运行**：数据处理、转写、对齐、导出全在本机完成，不上传外网。
@@ -20,6 +21,7 @@
 - **必须使用 GPU 加速**：默认走 NVIDIA GPU 推理路径（`faster-whisper + CTranslate2`）。
 - **系统适配范围**：优先适配 **Windows 10 / Windows 11**（x64）。
 - **可选扩展**：预留本地 `<20B` 模型 API 接口，但不作为 MVP 必选项。
+
 
 ---
 
@@ -117,6 +119,7 @@ project/
 
 ---
 
+codex/implement-local-speech-to-text-conversion-25b4oh
 ## 4.1 模块目标（简单版）
 
 1. **ingest（输入预处理）**  
@@ -138,6 +141,7 @@ project/
    目标：预留本地 `<20B` 模型 API 调用位，用于后续摘要/问答增强。
 
 ---
+
 
 ## 5. 先做 MVP（两周可落地）
 
@@ -201,6 +205,7 @@ project/
 ## 10. 一句话实现路线
 
 先做“**ASR + 简单翻页检测 + 页级 PDF 拼版**”的最小闭环；跑通后再优化翻页准确率与文本可读性。
+ codex/implement-local-speech-to-text-conversion-25b4oh
 
 ---
 
@@ -214,3 +219,4 @@ project/
 4. 可输出 `page_manifest.json`（含 `page_id/start/end/keyframe_path`）。
 5. 可输出 `course_note.pdf`，并满足“每页左图右文”排版。
 6. 全流程不依赖外部云 API（断网环境可执行）。
+
