@@ -105,33 +105,63 @@
 
 ---
 
-### M6. `orchestrator`（流程编排）
+M6. orchestrator（pipeline orchestration）
 
-**职责**
-- 管理全链路执行顺序和失败退出。
-- 控制“仅重跑某阶段”“断点续跑”。
+职责
 
-**输入**
-- CLI 参数 / YAML 配置
+构建并执行整体 pipeline（按阶段顺序调度）。
+管理阶段依赖、失败退出与重试策略。
+支持仅运行某阶段（--only）与断点续跑（--resume）。
+汇总运行状态并生成统一退出码。
 
-**输出**
-- 总体运行状态、汇总日志、退出码
+输入
 
----
+config/default.yaml / user config YAML
+CLI runtime args
+--input
+--output-dir
+--only <stage>
+--resume-from <stage>
+--force
+--enable-llm
+output/meta/checkpoint.json（若存在）
+各阶段既有产物的存在性与 schema 校验结果
 
-### M7. `local_llm_hook`（预留，可选）
+输出
 
-**职责**
-- 作为可插拔后处理接口，接入本地 `<20B` 模型 API。
-- 用于：章节摘要、术语统一、问答索引增强。
+output/meta/run_plan.json
+output/meta/checkpoint.json
+output/meta/run_summary.json
+output/logs/run.log
+process exit code
+0: success
+1: config / input error
+2: stage execution failure
+3: partial success / interrupte
 
-**输入**
-- `page_text_map.json`
+M7. local_llm_hook（optional extension）
 
-**输出**
-- `page_summary.json` / `qa_index.json`（可选）
+职责
 
----
+提供可插拔的本地 LLM 接入口。
+用于可选后处理（如摘要、术语规范、索引增强）。
+不参与核心 pipeline，按需启用。
+
+输入
+
+output/page_text_map.json
+config/llm.yaml（可选）
+prompt templates（可选）
+prompts/page_summary.txt
+prompts/term_normalize.txt
+prompts/qa_index.txt
+
+输出（可选）
+
+output/page_summary.json
+output/term_map.json
+output/qa_index.json
+output/logs/llm_hook.log
 
 ## 3. 目录结构（建议）
 
