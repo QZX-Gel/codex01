@@ -13,6 +13,16 @@
 
 要求是全部本地离线执行，不依赖云端 API。
 
+codex/implement-local-speech-to-text-conversion-25b4oh
+### 1.1 约束条件（新增）
+
+- **必须本地运行**：数据处理、转写、对齐、导出全在本机完成，不上传外网。
+- **固定 Python 版本**：统一使用 **Python 3.11.x**（建议 3.11.9），避免依赖冲突。
+- **必须使用 GPU 加速**：默认走 NVIDIA GPU 推理路径（`faster-whisper + CTranslate2`）。
+- **系统适配范围**：优先适配 **Windows 10 / Windows 11**（x64）。
+- **可选扩展**：预留本地 `<20B` 模型 API 接口，但不作为 MVP 必选项。
+
+
 ---
 
 ## 2. 推荐技术栈（全部本地可运行）
@@ -109,6 +119,30 @@ project/
 
 ---
 
+codex/implement-local-speech-to-text-conversion-25b4oh
+## 4.1 模块目标（简单版）
+
+1. **ingest（输入预处理）**  
+   目标：把 `mp4/mkv` 统一转换为 `16k wav + 2~6 fps` 抽帧结果。
+
+2. **asr（语音转写）**  
+   目标：基于 `faster-whisper + CTranslate2` 生成带时间戳文本段。
+
+3. **slide_detector（翻页检测）**  
+   目标：输出稳定的页面区间（`page_id/start/end/keyframe`）。
+
+4. **aligner（页文对齐）**  
+   目标：将 ASR 文本按时间重叠映射到每个 PPT 页。
+
+5. **pdf_renderer（PDF 拼版）**  
+   目标：输出每页“左图右文”的课堂笔记 PDF。
+
+6. **local_llm_hook（预留接口，可选）**  
+   目标：预留本地 `<20B` 模型 API 调用位，用于后续摘要/问答增强。
+
+---
+
+
 ## 5. 先做 MVP（两周可落地）
 
 ### 第 1 周（先打通主链路）
@@ -171,3 +205,18 @@ project/
 ## 10. 一句话实现路线
 
 先做“**ASR + 简单翻页检测 + 页级 PDF 拼版**”的最小闭环；跑通后再优化翻页准确率与文本可读性。
+ codex/implement-local-speech-to-text-conversion-25b4oh
+
+---
+
+## 11. 简单验收标准（MVP）
+
+满足以下 6 条即可判定 MVP 验收通过：
+
+1. 在 **Windows 10/11 + Python 3.11.x** 环境可一键跑通主流程。
+2. 默认使用 GPU 路径完成转写（日志中可看到 CUDA/GPU 设备信息）。
+3. 输入 1 个课堂视频后，可输出 `transcript.jsonl`（含 `start/end/text`）。
+4. 可输出 `page_manifest.json`（含 `page_id/start/end/keyframe_path`）。
+5. 可输出 `course_note.pdf`，并满足“每页左图右文”排版。
+6. 全流程不依赖外部云 API（断网环境可执行）。
+
