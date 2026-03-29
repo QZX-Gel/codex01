@@ -1,0 +1,8 @@
+# 功能: 配置样例。作用: 提供默认参数入口。边界: 仅声明配置，不实现运行逻辑。
+runtime:
+  platform: "windows"
+  gpu_required: true
+
+asr:
+  engine: "faster-whisper"
+  device: "cuda"

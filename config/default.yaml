@@ -1,0 +1,15 @@
+# 功能: 配置样例。作用: 提供默认参数入口。边界: 仅声明配置，不实现运行逻辑。
+runtime:
+  python_version: "3.11"
+  platform: "windows"
+
+asr:
+  engine: "faster-whisper"
+  model_name: "medium"
+  device: "cuda"
+
+video:
+  frame_fps: 4
+
+local_llm_hook:
+  enabled: false
