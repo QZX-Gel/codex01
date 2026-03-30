@@ -5,6 +5,7 @@ video:
 asr:
   model_name: medium
   device: cuda
+  engine: faster-whisper
 slide:
   ssim_threshold: 0.82
 align:
