@@ -73,6 +73,8 @@ def test_load_default_config() -> None:
     assert hasattr(cfg.asr, "device")
     assert hasattr(cfg.video, "frame_fps")
     assert hasattr(cfg.slide, "ssim_threshold")
+    assert hasattr(cfg.slide, "min_page_duration_sec")
+    assert hasattr(cfg.slide, "cooldown_sec")
     assert hasattr(cfg.align, "min_overlap_sec")
 
 

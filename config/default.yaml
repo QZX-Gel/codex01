@@ -8,6 +8,8 @@ asr:
   engine: faster-whisper
 slide:
   ssim_threshold: 0.82
+  min_page_duration_sec: 1.0
+  cooldown_sec: 1.0
 align:
   min_overlap_sec: 0.3
 local_llm_hook:
