@@ -1,0 +1,13 @@
+input_video: input/class.mp4
+output_dir: output
+video:
+  frame_fps: 4
+asr:
+  model_name: medium
+  device: cuda
+slide:
+  ssim_threshold: 0.82
+align:
+  min_overlap_sec: 0.3
+local_llm_hook:
+  enabled: false
