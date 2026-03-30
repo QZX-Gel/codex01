@@ -11,6 +11,8 @@ import json
 class ASRConfig:
     model_name: str
     device: str
+    engine: str
+    beam_size: int | None
 
 
 @dataclass(frozen=True)
@@ -38,12 +40,19 @@ class PipelineConfig:
     asr_device: str = "cuda"
     enable_local_llm_hook: bool = False
     asr_model_name: str = "medium"
+    asr_engine: str = "faster-whisper"
+    asr_beam_size: int | None = None
     min_overlap_sec: float = 0.3
     ssim_threshold: float = 0.82
 
     @property
     def asr(self) -> ASRConfig:
-        return ASRConfig(model_name=self.asr_model_name, device=self.asr_device)
+        return ASRConfig(
+            model_name=self.asr_model_name,
+            device=self.asr_device,
+            engine=self.asr_engine,
+            beam_size=self.asr_beam_size,
+        )
 
     @property
     def video(self) -> VideoConfig:
@@ -74,6 +83,8 @@ class PipelineConfig:
             "frame_fps": flat.get("frame_fps", video.get("frame_fps", cls.frame_fps)),
             "asr_device": flat.get("asr_device", asr.get("device", cls.asr_device)),
             "asr_model_name": flat.get("asr_model_name", asr.get("model_name", cls.asr_model_name)),
+            "asr_engine": flat.get("asr_engine", asr.get("engine", cls.asr_engine)),
+            "asr_beam_size": flat.get("asr_beam_size", asr.get("beam_size", cls.asr_beam_size)),
             "min_overlap_sec": flat.get("min_overlap_sec", align.get("min_overlap_sec", cls.min_overlap_sec)),
             "ssim_threshold": flat.get("ssim_threshold", slide.get("ssim_threshold", cls.ssim_threshold)),
             "enable_local_llm_hook": flat.get(

@@ -34,3 +34,8 @@ class PdfRenderError(AppError):
 class FfprobeError(AppError):
     code = "E2002"
     suggestion = "请确认 ffprobe 已安装，且命令可在终端中执行。"
+
+
+class ASRTranscriptionError(AppError):
+    code = "E3002"
+    suggestion = "请检查音频是否有效、模型推理依赖是否完整，并查看 ASR 日志。"
