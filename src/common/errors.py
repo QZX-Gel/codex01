@@ -30,3 +30,7 @@ class SlideDetectionError(AppError):
 class PdfRenderError(AppError):
     code = "E5001"
     suggestion = "请检查字体、编码和输出目录权限。"
+
+class FfprobeError(AppError):
+    code = "E2002"
+    suggestion = "请确认 ffprobe 已安装，且命令可在终端中执行。"
