@@ -1,2 +1,18 @@
-"""功能: 模块骨架/测试代码。作用: 提供最小可运行能力。边界: 当前为 stub，不含真实业务推理。"""
+"""功能: common 聚合出口。作用: 暴露跨模块共享契约。边界: 不包含业务流程编排。"""
 
+from .config import PipelineConfig, load_config
+from .errors import AppError, ASRError, IngestError, RenderError, SlideDetectError
+from .schema import PageTextMap, SlideSpan, TranscriptSegment
+
+__all__ = [
+    "PipelineConfig",
+    "load_config",
+    "AppError",
+    "IngestError",
+    "ASRError",
+    "SlideDetectError",
+    "RenderError",
+    "TranscriptSegment",
+    "SlideSpan",
+    "PageTextMap",
+]
