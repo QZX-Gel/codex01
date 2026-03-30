@@ -1,40 +1,32 @@
-"""功能: 统一错误模型。作用: 提供稳定错误码与可诊断消息。边界: 不做异常恢复调度。"""
-
 class AppError(Exception):
-    """应用层基类异常。"""
-
     code = "E0000"
+    suggestion = "请查看日志并检查配置。"
 
-    def __init__(self, message: str, *, hint: str | None = None):
+    def __init__(self, message: str):
+        super().__init__(message)
         self.message = message
-        self.hint = hint
-        super().__init__(self.__str__())
-
-    def __str__(self) -> str:
-        if self.hint:
-            return f"[{self.code}] {self.message} | hint={self.hint}"
-        return f"[{self.code}] {self.message}"
 
 
-class IngestError(AppError):
-    """输入/预处理阶段错误。"""
-
+class InputFileError(AppError):
     code = "E1001"
+    suggestion = "请检查输入文件路径是否正确，文件是否存在或损坏。"
 
 
-class ASRError(AppError):
-    """ASR 阶段错误。"""
+class FfmpegError(AppError):
+    code = "E2001"
+    suggestion = "请确认 ffmpeg 已安装，且命令可在终端中执行。"
 
+
+class ASRModelLoadError(AppError):
     code = "E3001"
+    suggestion = "请检查模型名称、CUDA/驱动是否匹配，必要时切换到 CPU。"
 
 
-class SlideDetectError(AppError):
-    """翻页检测阶段错误。"""
-
+class SlideDetectionError(AppError):
     code = "E4001"
+    suggestion = "请检查抽帧结果，并尝试调整 ssim_threshold 或 cooldown_sec。"
 
 
-class RenderError(AppError):
-    """渲染导出阶段错误。"""
-
+class PdfRenderError(AppError):
     code = "E5001"
+    suggestion = "请检查字体、编码和输出目录权限。"
