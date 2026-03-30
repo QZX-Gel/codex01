@@ -7,14 +7,30 @@ from pathlib import Path
 import json
 
 
+@dataclass(frozen=True)
+class ASRConfig:
+    model_name: str
+    device: str
+
+
+@dataclass(frozen=True)
+class VideoConfig:
+    frame_fps: int
+
+
+@dataclass(frozen=True)
+class SlideConfig:
+    ssim_threshold: float
+
+
+@dataclass(frozen=True)
+class AlignConfig:
+    min_overlap_sec: float
+
+
 @dataclass
 class PipelineConfig:
-    """Pipeline 扁平化运行配置。
-
-    说明:
-    - 字段命名与运行时直接消费保持一致，便于模块调用。
-    - 允许从 YAML 分层配置映射到当前扁平结构（见 `from_mapping`）。
-    """
+    """Pipeline 扁平化运行配置。"""
 
     input_video: str = "input/class.mp4"
     output_dir: str = "output"
@@ -25,12 +41,27 @@ class PipelineConfig:
     min_overlap_sec: float = 0.3
     ssim_threshold: float = 0.82
 
+    @property
+    def asr(self) -> ASRConfig:
+        return ASRConfig(model_name=self.asr_model_name, device=self.asr_device)
+
+    @property
+    def video(self) -> VideoConfig:
+        return VideoConfig(frame_fps=self.frame_fps)
+
+    @property
+    def slide(self) -> SlideConfig:
+        return SlideConfig(ssim_threshold=self.ssim_threshold)
+
+    @property
+    def align(self) -> AlignConfig:
+        return AlignConfig(min_overlap_sec=self.min_overlap_sec)
+
     @classmethod
     def from_mapping(cls, data: dict) -> "PipelineConfig":
         """兼容 JSON 扁平配置与 architecture.md 中的分层 YAML 配置。"""
         flat = dict(data or {})
 
-        # 分层 YAML -> 扁平字段映射
         video = flat.get("video", {})
         asr = flat.get("asr", {})
         align = flat.get("align", {})
@@ -71,6 +102,6 @@ def load_config(path: str | None = None) -> PipelineConfig:
         return PipelineConfig()
     p = Path(path)
     if not p.exists():
-        return PipelineConfig()
+        raise FileNotFoundError(f"Config file not found: {path}")
     data = _load_raw_mapping(p)
     return PipelineConfig.from_mapping(data)

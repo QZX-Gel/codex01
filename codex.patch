@@ -1,0 +1,191 @@
+diff --git a/config/default.yaml b/config/default.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..2c10f24d3975522c26b8c067b6c6f8f817178e6a
+--- /dev/null
++++ b/config/default.yaml
+@@ -0,0 +1,13 @@
++input_video: input/class.mp4
++output_dir: output
++video:
++  frame_fps: 4
++asr:
++  model_name: medium
++  device: cuda
++slide:
++  ssim_threshold: 0.82
++align:
++  min_overlap_sec: 0.3
++local_llm_hook:
++  enabled: false
+diff --git a/pytest.ini b/pytest.ini
+new file mode 100644
+index 0000000000000000000000000000000000000000..a635c5c031823148db0da62e63edb0c1f6e4a5f6
+--- /dev/null
++++ b/pytest.ini
+@@ -0,0 +1,2 @@
++[pytest]
++pythonpath = .
+diff --git a/src/common/config.py b/src/common/config.py
+index 6f88b4d41aa2fa32be207740d2ffc4d50cb38cd3..9c03559542e8f529b42c8952bc7bfdfbcf3eb83f 100644
+--- a/src/common/config.py
++++ b/src/common/config.py
+@@ -1,76 +1,107 @@
+ """功能: 配置加载与归一化。作用: 把 JSON/YAML 配置映射为统一 PipelineConfig。边界: 不负责业务执行。"""
+ 
+ from __future__ import annotations
+ 
+ from dataclasses import dataclass
+ from pathlib import Path
+ import json
+ 
+ 
++@dataclass(frozen=True)
++class ASRConfig:
++    model_name: str
++    device: str
++
++
++@dataclass(frozen=True)
++class VideoConfig:
++    frame_fps: int
++
++
++@dataclass(frozen=True)
++class SlideConfig:
++    ssim_threshold: float
++
++
++@dataclass(frozen=True)
++class AlignConfig:
++    min_overlap_sec: float
++
++
+ @dataclass
+ class PipelineConfig:
+-    """Pipeline 扁平化运行配置。
+-
+-    说明:
+-    - 字段命名与运行时直接消费保持一致，便于模块调用。
+-    - 允许从 YAML 分层配置映射到当前扁平结构（见 `from_mapping`）。
+-    """
++    """Pipeline 扁平化运行配置。"""
+ 
+     input_video: str = "input/class.mp4"
+     output_dir: str = "output"
+     frame_fps: int = 4
+     asr_device: str = "cuda"
+     enable_local_llm_hook: bool = False
+     asr_model_name: str = "medium"
+     min_overlap_sec: float = 0.3
+     ssim_threshold: float = 0.82
+ 
++    @property
++    def asr(self) -> ASRConfig:
++        return ASRConfig(model_name=self.asr_model_name, device=self.asr_device)
++
++    @property
++    def video(self) -> VideoConfig:
++        return VideoConfig(frame_fps=self.frame_fps)
++
++    @property
++    def slide(self) -> SlideConfig:
++        return SlideConfig(ssim_threshold=self.ssim_threshold)
++
++    @property
++    def align(self) -> AlignConfig:
++        return AlignConfig(min_overlap_sec=self.min_overlap_sec)
++
+     @classmethod
+     def from_mapping(cls, data: dict) -> "PipelineConfig":
+         """兼容 JSON 扁平配置与 architecture.md 中的分层 YAML 配置。"""
+         flat = dict(data or {})
+ 
+-        # 分层 YAML -> 扁平字段映射
+         video = flat.get("video", {})
+         asr = flat.get("asr", {})
+         align = flat.get("align", {})
+         slide = flat.get("slide", {})
+         llm = flat.get("local_llm_hook", {})
+ 
+         mapped = {
+             "input_video": flat.get("input_video", cls.input_video),
+             "output_dir": flat.get("output_dir", cls.output_dir),
+             "frame_fps": flat.get("frame_fps", video.get("frame_fps", cls.frame_fps)),
+             "asr_device": flat.get("asr_device", asr.get("device", cls.asr_device)),
+             "asr_model_name": flat.get("asr_model_name", asr.get("model_name", cls.asr_model_name)),
+             "min_overlap_sec": flat.get("min_overlap_sec", align.get("min_overlap_sec", cls.min_overlap_sec)),
+             "ssim_threshold": flat.get("ssim_threshold", slide.get("ssim_threshold", cls.ssim_threshold)),
+             "enable_local_llm_hook": flat.get(
+                 "enable_local_llm_hook",
+                 llm.get("enabled", cls.enable_local_llm_hook),
+             ),
+         }
+         return cls(**mapped)
+ 
+ 
+ def _load_raw_mapping(path: Path) -> dict:
+     if path.suffix.lower() in {".json"}:
+         return json.loads(path.read_text(encoding="utf-8"))
+     if path.suffix.lower() in {".yaml", ".yml"}:
+         try:
+             import yaml  # type: ignore
+         except Exception:
+             return {}
+         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+     return {}
+ 
+ 
+ def load_config(path: str | None = None) -> PipelineConfig:
+     """加载配置文件并返回归一化后的 PipelineConfig。"""
+     if not path:
+         return PipelineConfig()
+     p = Path(path)
+     if not p.exists():
+-        return PipelineConfig()
++        raise FileNotFoundError(f"Config file not found: {path}")
+     data = _load_raw_mapping(p)
+     return PipelineConfig.from_mapping(data)
+diff --git a/src/common/logger.py b/src/common/logger.py
+index 08cd0ab69f71ce7a2fa5e9db6d6a3b2e9aaa9517..e6f852367fe92cff19a2587044b843a51e841630 100644
+--- a/src/common/logger.py
++++ b/src/common/logger.py
+@@ -1,27 +1,36 @@
+ """功能: 日志工具。作用: 提供统一日志格式与结构化字段扩展。边界: 不负责日志采集后端。"""
+ 
+ import logging
++from pathlib import Path
+ from typing import Any
+ 
+ 
+ def get_logger(name: str = "classnote") -> logging.Logger:
+     """返回统一格式 logger，避免重复添加 handler。"""
+     logger = logging.getLogger(name)
+     if not logger.handlers:
+-        handler = logging.StreamHandler()
+         formatter = logging.Formatter(
+             "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+         )
+-        handler.setFormatter(formatter)
+-        logger.addHandler(handler)
++
++        stream_handler = logging.StreamHandler()
++        stream_handler.setFormatter(formatter)
++        logger.addHandler(stream_handler)
++
++        log_path = Path("output/logs/run.log")
++        log_path.parent.mkdir(parents=True, exist_ok=True)
++        file_handler = logging.FileHandler(log_path, encoding="utf-8")
++        file_handler.setFormatter(formatter)
++        logger.addHandler(file_handler)
++
+         logger.setLevel(logging.INFO)
+         logger.propagate = False
+     return logger
+ 
+ 
+ def kv(msg: str, **fields: Any) -> str:
+     """生成 key=value 风格日志消息，便于 grep 与后续接入结构化日志。"""
+     if not fields:
+         return msg
+     payload = " ".join(f"{k}={v}" for k, v in fields.items())
+     return f"{msg} {payload}"
