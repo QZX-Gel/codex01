@@ -23,6 +23,8 @@ class VideoConfig:
 @dataclass(frozen=True)
 class SlideConfig:
     ssim_threshold: float
+    min_page_duration_sec: float
+    cooldown_sec: float
 
 
 @dataclass(frozen=True)
@@ -44,6 +46,8 @@ class PipelineConfig:
     asr_beam_size: int | None = None
     min_overlap_sec: float = 0.3
     ssim_threshold: float = 0.82
+    min_page_duration_sec: float = 1.0
+    cooldown_sec: float = 1.0
 
     @property
     def asr(self) -> ASRConfig:
@@ -60,7 +64,11 @@ class PipelineConfig:
 
     @property
     def slide(self) -> SlideConfig:
-        return SlideConfig(ssim_threshold=self.ssim_threshold)
+        return SlideConfig(
+            ssim_threshold=self.ssim_threshold,
+            min_page_duration_sec=self.min_page_duration_sec,
+            cooldown_sec=self.cooldown_sec,
+        )
 
     @property
     def align(self) -> AlignConfig:
@@ -87,6 +95,11 @@ class PipelineConfig:
             "asr_beam_size": flat.get("asr_beam_size", asr.get("beam_size", cls.asr_beam_size)),
             "min_overlap_sec": flat.get("min_overlap_sec", align.get("min_overlap_sec", cls.min_overlap_sec)),
             "ssim_threshold": flat.get("ssim_threshold", slide.get("ssim_threshold", cls.ssim_threshold)),
+            "min_page_duration_sec": flat.get(
+                "min_page_duration_sec",
+                slide.get("min_page_duration_sec", cls.min_page_duration_sec),
+            ),
+            "cooldown_sec": flat.get("cooldown_sec", slide.get("cooldown_sec", cls.cooldown_sec)),
             "enable_local_llm_hook": flat.get(
                 "enable_local_llm_hook",
                 llm.get("enabled", cls.enable_local_llm_hook),
