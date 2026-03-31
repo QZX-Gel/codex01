@@ -64,13 +64,30 @@ def transcribe_audio(wav_path: str, model_name: str = "medium", device: str = "c
     if not wav.exists() or not wav.is_file():
         raise InputFileError(f"Audio file not found: {wav}")
 
-    logger.info(kv("asr.transcribe.start", wav_path=str(wav), model_name=model_name, device=device))
+    logger.info(
+        kv(
+            "asr.transcribe.start",
+            wav_path=str(wav),
+            model_name=model_name,
+            device=device,
+            cpu_baseline=(device == "cpu"),
+        )
+    )
 
     try:
         from faster_whisper import WhisperModel  # type: ignore
 
         model = WhisperModel(model_name, device=device)
     except Exception as exc:  # pragma: no cover - exercised via unit tests with monkeypatch
+        err_msg = str(exc)
+        if device == "cuda" and "cublas64_12.dll" in err_msg:
+            logger.error(
+                kv(
+                    "asr.cuda.runtime_missing",
+                    device=device,
+                    hint="CUDA runtime libraries missing. Use device=cpu as baseline for local debugging.",
+                )
+            )
         logger.exception(kv("asr.model_load.failed", model_name=model_name, device=device, error=str(exc)))
         raise ASRModelLoadError(
             f"Failed to load ASR model '{model_name}' on device '{device}': {exc}"
@@ -89,16 +106,17 @@ def transcribe_audio(wav_path: str, model_name: str = "medium", device: str = "c
             "asr.transcribe.done",
             language=language if language is not None else "unknown",
             segment_count=len(segments),
+            source="faster-whisper",
         )
     )
 
     jsonl_path = Path("output") / "transcript.jsonl"
     _write_transcript_jsonl(segments, jsonl_path)
-    logger.info(kv("asr.artifact.written", path=str(jsonl_path)))
+    logger.info(kv("asr.artifact.written", artifact="transcript_jsonl", path=str(jsonl_path), segment_count=len(segments)))
 
     srt_path = Path("output") / "transcript.srt"
     _write_transcript_srt(segments, srt_path)
-    logger.info(kv("asr.artifact.written", path=str(srt_path)))
+    logger.info(kv("asr.artifact.written", artifact="transcript_srt", path=str(srt_path), segment_count=len(segments)))
 
     return segments
 
