@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -286,3 +288,79 @@ def render_note_pdf(
 
     logger.info(kv("pdf render done", output=str(out)))
     return str(out)
+
+
+def _load_slides(manifest_path: Path) -> list[SlideSpan]:
+    if not manifest_path.exists():
+        raise PdfRenderError(f"missing page manifest: {manifest_path}")
+
+    try:
+        raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise PdfRenderError(f"invalid page manifest json: {manifest_path}") from exc
+
+    if not isinstance(raw, list) or not raw:
+        raise PdfRenderError("page manifest must be a non-empty list")
+
+    slides: list[SlideSpan] = []
+    for idx, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise PdfRenderError(f"page manifest item {idx} must be an object")
+        try:
+            slides.append(SlideSpan(**item))
+        except Exception as exc:
+            raise PdfRenderError(f"invalid page manifest item {idx}") from exc
+    return slides
+
+
+def _load_page_text_map(page_text_map_path: Path) -> dict[int, list[TranscriptSegment]]:
+    if not page_text_map_path.exists():
+        raise PdfRenderError(f"missing page_text_map: {page_text_map_path}")
+
+    try:
+        raw = json.loads(page_text_map_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise PdfRenderError(f"invalid page_text_map json: {page_text_map_path}") from exc
+
+    if not isinstance(raw, dict):
+        raise PdfRenderError("page_text_map must be a JSON object")
+
+    page_text_map: dict[int, list[TranscriptSegment]] = {}
+    for page_id_raw, segments_raw in raw.items():
+        try:
+            page_id = int(page_id_raw)
+        except Exception as exc:
+            raise PdfRenderError(f"invalid page id in page_text_map: {page_id_raw}") from exc
+
+        if not isinstance(segments_raw, list):
+            raise PdfRenderError(f"page_text_map[{page_id_raw}] must be a list")
+
+        segments: list[TranscriptSegment] = []
+        for idx, seg_raw in enumerate(segments_raw):
+            if not isinstance(seg_raw, dict):
+                raise PdfRenderError(f"page_text_map[{page_id_raw}][{idx}] must be an object")
+            try:
+                segments.append(TranscriptSegment(**seg_raw))
+            except Exception as exc:
+                raise PdfRenderError(f"invalid segment at page_text_map[{page_id_raw}][{idx}]") from exc
+        page_text_map[page_id] = segments
+    return page_text_map
+
+
+def build_course_note(output_dir: str = "output") -> str:
+    out_dir = Path(output_dir)
+    slides = _load_slides(out_dir / "page_manifest.json")
+    page_text_map = _load_page_text_map(out_dir / "page_text_map.json")
+    return render_note_pdf(slides, page_text_map, str(out_dir / "course_note.pdf"))
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Render course note PDF from output artifacts")
+    parser.add_argument("--output-dir", default="output", help="Directory containing page_manifest.json and page_text_map.json")
+    args = parser.parse_args()
+    build_course_note(output_dir=args.output_dir)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
