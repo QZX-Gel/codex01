@@ -99,5 +99,14 @@ def test_transcribe_audio_with_mocked_faster_whisper(monkeypatch: pytest.MonkeyP
     results = transcribe_audio(str(wav_path), model_name="tiny", device="cpu")
 
     assert [seg.text for seg in results] == ["hi", "there"]
-    assert (tmp_path / "output" / "transcript.jsonl").exists()
+    transcript_jsonl = tmp_path / "output" / "transcript.jsonl"
+    assert transcript_jsonl.exists()
     assert (tmp_path / "output" / "transcript.srt").exists()
+
+    lines = transcript_jsonl.read_text(encoding="utf-8").splitlines()
+    parsed = [json.loads(line) for line in lines]
+    assert parsed == [
+        {"start_time": 0.0, "end_time": 0.6, "text": "hi"},
+        {"start_time": 0.6, "end_time": 1.2, "text": "there"},
+    ]
+    assert all(item["text"] not in {"a", "b"} for item in parsed)

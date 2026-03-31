@@ -119,12 +119,33 @@ def _build_slide_spans(
     return spans
 
 
-def detect_slide_spans(frame_paths: list[str], ssim_threshold: float = 0.82) -> list[SlideSpan]:
-    """Detect slide spans from ordered frame paths.
+def _persist_slide_artifacts(
+    ordered: list[str],
+    spans: list[SlideSpan],
+    *,
+    fps: float,
+    output_dir: str,
+    logger,
+) -> list[SlideSpan]:
+    output_root = Path(output_dir)
+    slides_dir = output_root / "slides"
+    manifest_path = output_root / "page_manifest.json"
 
-    This API only does page-span detection. Keyframe and manifest writing should be
-    done by :func:`run_slide_detection`.
-    """
+    spans_with_keyframes = _write_keyframes(ordered, spans, slides_dir, fps=fps)
+    written_manifest = _write_manifest(spans_with_keyframes, manifest_path)
+
+    logger.info(kv("slide.detect.output", manifest_output_path=written_manifest, keyframe_output_dir=str(slides_dir), keyframe_count=len(spans_with_keyframes)))
+    return spans_with_keyframes
+
+
+def detect_slide_spans(
+    frame_paths: list[str],
+    ssim_threshold: float = 0.82,
+    *,
+    output_dir: str = "output",
+    persist_artifacts: bool = True,
+) -> list[SlideSpan]:
+    """Detect slide spans from ordered frame paths and persist M3 artifacts by default."""
     from src.common.config import load_config
 
     logger = get_logger("slide_detector")
@@ -144,7 +165,14 @@ def detect_slide_spans(frame_paths: list[str], ssim_threshold: float = 0.82) -> 
 
     logger.info(kv("slide.detect.start", frame_count=len(ordered), ssim_threshold=ssim_threshold))
     candidates = _detect_candidate_boundaries(ordered, ssim_threshold)
-    logger.info(kv("slide.detect.candidates", candidates=candidates))
+    logger.info(
+        kv(
+            "slide.detect.candidates",
+            candidate_boundary_count=len(candidates),
+            candidates=candidates,
+            note="no boundaries detected" if not candidates else "",
+        )
+    )
 
     filtered = _filter_boundaries(
         candidates,
@@ -152,10 +180,16 @@ def detect_slide_spans(frame_paths: list[str], ssim_threshold: float = 0.82) -> 
         cooldown_sec=cooldown_sec,
         min_page_duration_sec=min_page_duration_sec,
     )
+    logger.info(kv("slide.detect.filtered", filtered_boundary_count=len(filtered), filtered=filtered))
     spans = _build_slide_spans(ordered, filtered, fps=fps)
 
-    logger.info(kv("slide.detect.done", page_count=len(spans)))
-    return spans
+    if not persist_artifacts:
+        logger.info(kv("slide.detect.done", page_count=len(spans), keyframe_count=0, artifacts_written=False))
+        return spans
+
+    spans_with_keyframes = _persist_slide_artifacts(ordered, spans, fps=fps, output_dir=output_dir, logger=logger)
+    logger.info(kv("slide.detect.done", page_count=len(spans_with_keyframes), keyframe_count=len(spans_with_keyframes), artifacts_written=True))
+    return spans_with_keyframes
 
 
 def _write_keyframes(
@@ -216,10 +250,21 @@ def run_slide_detection(
         raise SlideDetectionError("Empty frame list: no frames found for slide detection.")
 
     ordered = sorted(frame_paths, key=lambda p: (_extract_frame_index(p), Path(p).name))
+    for frame in ordered:
+        if not Path(frame).exists():
+            raise SlideDetectionError(f"Unreadable image file: {frame}")
+
     logger.info(kv("slide.detect.start", frame_count=len(ordered), ssim_threshold=ssim_threshold))
 
     candidates = _detect_candidate_boundaries(ordered, ssim_threshold)
-    logger.info(kv("slide.detect.candidates", candidates=candidates))
+    logger.info(
+        kv(
+            "slide.detect.candidates",
+            candidate_boundary_count=len(candidates),
+            candidates=candidates,
+            note="no boundaries detected" if not candidates else "",
+        )
+    )
 
     filtered = _filter_boundaries(
         candidates,
@@ -227,15 +272,8 @@ def run_slide_detection(
         cooldown_sec=cooldown_sec,
         min_page_duration_sec=min_page_duration_sec,
     )
+    logger.info(kv("slide.detect.filtered", filtered_boundary_count=len(filtered), filtered=filtered))
     spans = _build_slide_spans(ordered, filtered, fps=fps)
 
-    output_root = Path(output_dir)
-    slides_dir = output_root / "slides"
-    manifest_path = output_root / "page_manifest.json"
-
-    spans_with_keyframes = _write_keyframes(ordered, spans, slides_dir, fps=fps)
-    written_manifest = _write_manifest(spans_with_keyframes, manifest_path)
-
-    logger.info(kv("slide.detect.filtered_pages", page_count=len(spans_with_keyframes)))
-    logger.info(kv("slide.detect.output", manifest=written_manifest, slides_dir=str(slides_dir)))
-    return spans_with_keyframes
+    spans_with_keyframes = _persist_slide_artifacts(ordered, spans, fps=fps, output_dir=output_dir, logger=logger)
+    logger.info(kv("slide.detect.done", page_count=len(spans_with_keyframes), keyframe_count=len(spans_with_keyframes), artifacts_written=True))

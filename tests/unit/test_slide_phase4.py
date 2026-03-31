@@ -52,12 +52,44 @@ def test_detect_slide_spans_shape(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
 
     monkeypatch.setattr(slide_mod, "_compute_ssim", fake_ssim)
 
-    spans = slide_mod.detect_slide_spans(frames, ssim_threshold=0.82)
+    spans = slide_mod.detect_slide_spans(frames, ssim_threshold=0.82, persist_artifacts=False)
 
     assert isinstance(spans, list)
     assert len(spans) >= 2
     assert spans[0].page_id == 1
     assert all(s.end_time >= s.start_time for s in spans)
+
+
+def test_detect_slide_spans_single_page_still_writes_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    frames = _make_dummy_frames(tmp_path, 3)
+
+    def fake_detect(_frame_paths: list[str], _threshold: float) -> list[int]:
+        return []
+
+    monkeypatch.setattr(slide_mod, "_detect_candidate_boundaries", fake_detect)
+
+    spans = slide_mod.detect_slide_spans(
+        frames,
+        ssim_threshold=0.82,
+        output_dir=str(tmp_path / "output"),
+    )
+
+    assert len(spans) == 1
+    assert spans[0].page_id == 1
+
+    manifest = tmp_path / "output" / "page_manifest.json"
+    keyframe = tmp_path / "output" / "slides" / "keyframe_001.jpg"
+    assert manifest.exists()
+    assert keyframe.exists()
+
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    assert len(payload) == 1
+    assert payload[0]["page_id"] == 1
+    assert payload[0]["keyframe_path"].endswith("keyframe_001.jpg")
+
 
 
 def test_page_manifest_serialization_and_keyframes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -87,3 +119,42 @@ def test_page_manifest_serialization_and_keyframes(monkeypatch: pytest.MonkeyPat
     assert payload[0]["keyframe_path"].endswith("keyframe_001.jpg")
 
     assert (slides_dir / "keyframe_001.jpg").exists()
+
+
+def test_run_slide_detection_empty_input_should_raise() -> None:
+    with pytest.raises(SlideDetectionError):
+        slide_mod.run_slide_detection([], output_dir="output")
+
+
+def test_run_slide_detection_single_page_still_writes_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    frames = _make_dummy_frames(tmp_path, 3)
+
+    def fake_detect(_frame_paths: list[str], _threshold: float) -> list[int]:
+        return []
+
+    monkeypatch.setattr(slide_mod, "_detect_candidate_boundaries", fake_detect)
+
+    spans = slide_mod.run_slide_detection(
+        frames,
+        output_dir=str(tmp_path / "output"),
+        ssim_threshold=0.82,
+        fps=2.0,
+        cooldown_sec=0.5,
+        min_page_duration_sec=0.5,
+    )
+
+    assert len(spans) == 1
+    assert spans[0].page_id == 1
+
+    manifest = tmp_path / "output" / "page_manifest.json"
+    keyframe = tmp_path / "output" / "slides" / "keyframe_001.jpg"
+    assert manifest.exists()
+    assert keyframe.exists()
+
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    assert len(payload) == 1
+    assert payload[0]["page_id"] == 1
+    assert payload[0]["keyframe_path"].endswith("keyframe_001.jpg")

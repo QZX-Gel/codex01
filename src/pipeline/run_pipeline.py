@@ -11,7 +11,7 @@ from src.common.logger import get_logger
 from src.ingest.extract_audio import extract_audio
 from src.ingest.extract_frames import extract_frames
 from src.asr.transcribe import transcribe_audio
-from src.slide.detect_slides import detect_slide_spans
+from src.slide.detect_slides import run_slide_detection
 from src.align.align_text import align_segments_to_slides
 from src.render.render_pdf import render_note_pdf
 from src.local_llm_hook.hook import run_local_llm_hook
@@ -33,23 +33,17 @@ def run_pipeline(config_path: str | None = None) -> int:
     logger.info("stage=ingest.done frames=%s", len(frame_paths))
 
     logger.info("stage=asr.start device=%s", cfg.asr_device)
-    segments = transcribe_audio(wav_path, device=cfg.asr_device)
-    transcript_path = output_dir / "transcript.jsonl"
-    transcript_path.write_text(
-        "\n".join(
-            json.dumps({"start_time": s.start_time, "end_time": s.end_time, "text": s.text}, ensure_ascii=False)
-            for s in segments
-        ),
-        encoding="utf-8",
-    )
+    segments = transcribe_audio(wav_path, model_name=cfg.asr_model_name, device=cfg.asr_device)
     logger.info("stage=asr.done segments=%s", len(segments))
 
     logger.info("stage=slide.start")
-    slides = detect_slide_spans(frame_paths)
-    page_manifest = output_dir / "page_manifest.json"
-    page_manifest.write_text(
-        json.dumps([s.__dict__ for s in slides], ensure_ascii=False, indent=2),
-        encoding="utf-8",
+    slides = run_slide_detection(
+        frame_paths,
+        output_dir=str(output_dir),
+        ssim_threshold=cfg.ssim_threshold,
+        fps=float(cfg.frame_fps),
+        cooldown_sec=cfg.cooldown_sec,
+        min_page_duration_sec=cfg.min_page_duration_sec,
     )
     logger.info("stage=slide.done pages=%s", len(slides))
 
