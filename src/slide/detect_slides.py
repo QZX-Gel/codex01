@@ -277,3 +277,4 @@ def run_slide_detection(
 
     spans_with_keyframes = _persist_slide_artifacts(ordered, spans, fps=fps, output_dir=output_dir, logger=logger)
     logger.info(kv("slide.detect.done", page_count=len(spans_with_keyframes), keyframe_count=len(spans_with_keyframes), artifacts_written=True))
+    return spans
